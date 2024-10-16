@@ -221,6 +221,18 @@ def compute_energy(nodes, adj_matrix):
 
     return total_energy
 
+# Find Triangles in the Current Graph
+def find_triangles(nodes, adj_matrix):
+    triangles = []
+    num_nodes = len(nodes)
+    for i in range(num_nodes):
+        for j in nodes[i].edges:
+            if j > i:
+                for k in nodes[j].edges:
+                    if k > j and adj_matrix[i][k]:
+                        triangles.append((i, j, k))
+    return triangles
+
 # Barycentric Refinement Function
 def generate_refined_triangle(nodes, adj_matrix, triangles, num_refinements=1):
     for _ in range(num_refinements):
@@ -228,6 +240,10 @@ def generate_refined_triangle(nodes, adj_matrix, triangles, num_refinements=1):
         midpoint_indices = {}
         for tri in triangles:
             a_idx, b_idx, c_idx = tri
+            # Validate indices
+            if a_idx >= len(nodes) or b_idx >= len(nodes) or c_idx >= len(nodes):
+                print(f"Invalid triangle indices encountered: {tri}. Skipping this triangle.")
+                continue
             a = nodes[a_idx]
             b = nodes[b_idx]
             c = nodes[c_idx]
@@ -449,7 +465,7 @@ def draw_graph(screen, nodes, adj_matrix, zoom, offset_x, offset_y, dragged_node
 
 # Draw the UI Panel
 def draw_ui(screen, iterations_per_frame, zoom_level, num_nodes, edge_prob, energy, input_active, input_boxes, 
-            refresh_button_hover, drag_mode, drag_mode_hover, highlight_distance, refine_button_hover, shrink_button_hover):
+            refresh_button_hover, drag_mode, drag_mode_hover, highlight_distance, refine_button_hover, shrink_button_hover, has_triangles):
     # Define the panel area
     panel_rect = pygame.Rect(0, HEIGHT - PANEL_HEIGHT, WIDTH, PANEL_HEIGHT)
     pygame.draw.rect(screen, DARK_GRAY, panel_rect)
@@ -547,255 +563,10 @@ def draw_ui(screen, iterations_per_frame, zoom_level, num_nodes, edge_prob, ener
 
     # Refine Button
     refine_button_rect = input_boxes['refine_button']['rect']
-    pygame.draw.rect(screen, GREEN if refine_button_hover else GRAY, refine_button_rect)
-    refine_text = FONT.render("Refine", True, BLACK)
-    screen.blit(refine_text, (
-        refine_button_rect.x + (refine_button_rect.width - refine_text.get_width()) // 2,
-        refine_button_rect.y + (refine_button_rect.height - refine_text.get_height()) // 2
-    ))
-
-    # Drag Mode Toggle Button
-    drag_mode_button_rect = input_boxes['drag_mode_button']['rect']
-    button_color = BUTTON_HOVER_COLOR if drag_mode_hover else BUTTON_COLOR
-    pygame.draw.rect(screen, button_color, drag_mode_button_rect)
-    drag_mode_text = FONT.render(f"Drag Mode: {'ON' if drag_mode else 'OFF'}", True, WHITE)
-    screen.blit(drag_mode_text, (
-        drag_mode_button_rect.x + (drag_mode_button_rect.width - drag_mode_text.get_width()) // 2,
-        drag_mode_button_rect.y + (drag_mode_button_rect.height - drag_mode_text.get_height()) // 2
-    ))
-
-    # Shrink Nodes Input Field
-    shrink_label = FONT.render("Nodes to Shrink (pairs):", True, WHITE)
-    screen.blit(shrink_label, (50, HEIGHT - PANEL_HEIGHT + 140))
-    pygame.draw.rect(screen, LIGHT_BLUE if input_active.get('shrink_nodes_input', False) else GRAY, input_boxes['shrink_nodes_input']['rect'], 2)
-    shrink_text = FONT.render(input_boxes['shrink_nodes_input']['text'], True, BLACK)
-    screen.blit(shrink_text, (input_boxes['shrink_nodes_input']['rect'].x + 5, input_boxes['shrink_nodes_input']['rect'].y + 5))
-
-    # Shrink Button
-    shrink_button_rect = input_boxes['shrink_button']['rect']
-    pygame.draw.rect(screen, GREEN if shrink_button_hover else GRAY, shrink_button_rect)
-    shrink_text = FONT.render("Shrink", True, BLACK)
-    screen.blit(shrink_text, (
-        shrink_button_rect.x + (shrink_button_rect.width - shrink_text.get_width()) // 2,
-        shrink_button_rect.y + (shrink_button_rect.height - shrink_text.get_height()) // 2
-    ))
-
-    # Display Energy
-    energy_text = FONT.render(f"Energy: {energy:.2f}", True, WHITE)
-    screen.blit(energy_text, (350, HEIGHT - PANEL_HEIGHT + 180))
-
-    # Instructions
-    instructions = [
-        "Click on a node to start Dijkstra's traversal.",
-        "Nodes at the selected distance are highlighted in Red.",
-        "Highlighted edges represent all shortest paths.",
-        "Toggle Drag Mode to drag nodes.",
-        "Click 'Refine' to perform Barycentric Refinement.",
-        "Enter number of node pairs to shrink and click 'Shrink'."
-    ]
-    for idx, text in enumerate(instructions):
-        instr_text = FONT_SMALL.render(text, True, WHITE)
-        screen.blit(instr_text, (50, HEIGHT - PANEL_HEIGHT + 220 + idx * 20))
-
-# Collapse Nodes Function (Corrected)
-def collapse_nodes(nodes, adj_matrix, num_pairs):
-    num_nodes = len(nodes)
-    if num_pairs <= 0:
-        print("Number of pairs to collapse must be positive.")
-        return nodes, adj_matrix, []
-    if 2 * num_pairs > num_nodes:
-        print("Not enough nodes to collapse the specified number of pairs.")
-        return nodes, adj_matrix, []
-
-    # Randomly select 2 * num_pairs unique node indices
-    available_indices = list(range(num_nodes))
-    random.shuffle(available_indices)
-    selected_indices = available_indices[:2 * num_pairs]
-
-    # Pair them
-    pairs = [(selected_indices[i], selected_indices[i + 1]) for i in range(0, 2 * num_pairs, 2)]
-
-    # To keep track of which nodes have been collapsed
-    collapsed_nodes = []
-
-    for a_idx, b_idx in pairs:
-        node_a = nodes[a_idx]
-        node_b = nodes[b_idx]
-
-        # Create a new node at the average position
-        new_x = (node_a.x + node_b.x) / 2
-        new_y = (node_a.y + node_b.y) / 2
-        new_node = Node(new_x, new_y)
-        nodes.append(new_node)
-
-        # Merge edges
-        new_edges = set(node_a.edges + node_b.edges)
-        new_edges.discard(a_idx)
-        new_edges.discard(b_idx)
-        new_edges = list(new_edges)
-        new_node.edges = new_edges
-
-        # Update adjacency matrix
-        adj_matrix.append([0] * len(nodes))  # New row for new node
-        for row in adj_matrix:
-            row.append(0)  # New column for new node
-
-        new_node_idx = len(nodes) - 1
-        for neighbor_idx in new_edges:
-            adj_matrix[new_node_idx][neighbor_idx] = 1
-            adj_matrix[neighbor_idx][new_node_idx] = 1
-            nodes[neighbor_idx].edges.append(new_node_idx)
-            # Remove old connections
-            if a_idx in nodes[neighbor_idx].edges:
-                nodes[neighbor_idx].edges.remove(a_idx)
-            if b_idx in nodes[neighbor_idx].edges:
-                nodes[neighbor_idx].edges.remove(b_idx)
-
-        # Remove nodes a and b from the graph
-        # First, remove their connections
-        for neighbor_idx in node_a.edges:
-            adj_matrix[a_idx][neighbor_idx] = 0
-            adj_matrix[neighbor_idx][a_idx] = 0
-            if a_idx in nodes[neighbor_idx].edges:
-                nodes[neighbor_idx].edges.remove(a_idx)
-        for neighbor_idx in node_b.edges:
-            adj_matrix[b_idx][neighbor_idx] = 0
-            adj_matrix[neighbor_idx][b_idx] = 0
-            if b_idx in nodes[neighbor_idx].edges:
-                nodes[neighbor_idx].edges.remove(b_idx)
-
-        # Mark nodes a and b for removal
-        collapsed_nodes.extend([a_idx, b_idx])
-
-    # Remove collapsed nodes from the nodes list and adjacency matrix
-    # To avoid issues with shifting indices, remove nodes in descending order
-    collapsed_nodes = sorted(collapsed_nodes, reverse=True)
-    for idx in collapsed_nodes:
-        del nodes[idx]
-        del adj_matrix[idx]
-    # Remove corresponding columns
-    for row in adj_matrix:
-        for idx in collapsed_nodes:
-            del row[idx]
-
-    # Update edge indices in nodes after removal
-    index_mapping = {}
-    current_idx = 0
-    for original_idx in range(len(nodes) + len(collapsed_nodes)):
-        if original_idx not in collapsed_nodes:
-            index_mapping[original_idx] = current_idx
-            current_idx += 1
-    for node in nodes:
-        updated_edges = []
-        for edge in node.edges:
-            updated_edges.append(index_mapping[edge])
-        node.edges = list(set(updated_edges))  # Remove duplicate edges
-
-    print(f"Collapsed {num_pairs} pairs of nodes.")
-    return nodes, adj_matrix, pairs
-
-# Draw the UI Panel (Updated to include shrink_button_hover)
-def draw_ui(screen, iterations_per_frame, zoom_level, num_nodes, edge_prob, energy, input_active, input_boxes, 
-            refresh_button_hover, drag_mode, drag_mode_hover, highlight_distance, refine_button_hover, shrink_button_hover):
-    # Define the panel area
-    panel_rect = pygame.Rect(0, HEIGHT - PANEL_HEIGHT, WIDTH, PANEL_HEIGHT)
-    pygame.draw.rect(screen, DARK_GRAY, panel_rect)
-
-    # Slider 1: Speed Control
-    speed_slider_x = 50
-    speed_slider_y = HEIGHT - PANEL_HEIGHT + 50
-    speed_slider_width = 200
-    speed_slider_height = 20
-
-    # Slider background
-    pygame.draw.rect(screen, GRAY, (speed_slider_x, speed_slider_y, speed_slider_width, speed_slider_height))
-
-    # Slider handle
-    speed_slider_position = (iterations_per_frame - MIN_ITERATIONS) / (MAX_ITERATIONS - MIN_ITERATIONS)
-    speed_handle_x = speed_slider_x + int(speed_slider_position * speed_slider_width)
-    speed_handle_y = speed_slider_y + speed_slider_height // 2
-    pygame.draw.circle(screen, BLUE, (speed_handle_x, speed_handle_y), 10)
-
-    # Slider 2: Zoom Control
-    zoom_slider_x = 300
-    zoom_slider_y = HEIGHT - PANEL_HEIGHT + 50
-    zoom_slider_width = 200
-    zoom_slider_height = 20
-
-    # Slider background
-    pygame.draw.rect(screen, GRAY, (zoom_slider_x, zoom_slider_y, zoom_slider_width, zoom_slider_height))
-
-    # Slider handle
-    zoom_slider_position = (zoom_level - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)
-    zoom_handle_x = zoom_slider_x + int(zoom_slider_position * zoom_slider_width)
-    zoom_handle_y = zoom_slider_y + zoom_slider_height // 2
-    pygame.draw.circle(screen, BLUE, (zoom_handle_x, zoom_handle_y), 10)
-
-    # Slider 3: Highlight Distance Control
-    highlight_slider_x = 550
-    highlight_slider_y = HEIGHT - PANEL_HEIGHT + 50
-    highlight_slider_width = 200
-    highlight_slider_height = 20
-
-    # Slider background
-    pygame.draw.rect(screen, GRAY, (highlight_slider_x, highlight_slider_y, highlight_slider_width, highlight_slider_height))
-
-    # Slider handle
-    highlight_slider_position = (highlight_distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
-    highlight_handle_x = highlight_slider_x + int(highlight_slider_position * highlight_slider_width)
-    highlight_handle_y = highlight_slider_y + highlight_slider_height // 2
-    pygame.draw.circle(screen, BLUE, (highlight_handle_x, highlight_handle_y), 10)
-
-    # Draw slider labels
-    label_speed = FONT.render("Speed Control:", True, WHITE)
-    screen.blit(label_speed, (speed_slider_x, speed_slider_y - 30))
-
-    label_zoom = FONT.render("Zoom Control:", True, WHITE)
-    screen.blit(label_zoom, (zoom_slider_x, zoom_slider_y - 30))
-
-    label_highlight = FONT.render("Highlight Distance:", True, WHITE)
-    screen.blit(label_highlight, (highlight_slider_x, highlight_slider_y - 30))
-
-    # Draw current slider values
-    speed_text = FONT.render(f"Speed: {iterations_per_frame}x", True, WHITE)
-    screen.blit(speed_text, (speed_slider_x + speed_slider_width // 2 - speed_text.get_width() // 2, speed_slider_y - 30))
-
-    zoom_display = f"{zoom_level:.2f}x"
-    zoom_text = FONT.render(f"Zoom: {zoom_display}", True, WHITE)
-    screen.blit(zoom_text, (zoom_slider_x + zoom_slider_width // 2 - zoom_text.get_width() // 2, zoom_slider_y - 30))
-
-    highlight_text_display = f"{highlight_distance}"
-    highlight_text = FONT.render(f"Distance: {highlight_text_display}", True, WHITE)
-    screen.blit(highlight_text, (highlight_slider_x + highlight_slider_width // 2 - highlight_text.get_width() // 2, highlight_slider_y - 30))
-
-    # Input Fields: Number of Nodes and Edge Probability
-    # Number of Nodes
-    nodes_label = FONT.render("Number of Nodes:", True, WHITE)
-    screen.blit(nodes_label, (50, HEIGHT - PANEL_HEIGHT + 100))
-    pygame.draw.rect(screen, LIGHT_BLUE if input_active['num_nodes'] else GRAY, input_boxes['num_nodes']['rect'], 2)
-    nodes_text = FONT.render(input_boxes['num_nodes']['text'], True, BLACK)
-    screen.blit(nodes_text, (input_boxes['num_nodes']['rect'].x + 5, input_boxes['num_nodes']['rect'].y + 5))
-
-    # Edge Probability
-    edge_label = FONT.render("Edge Probability (0-1):", True, WHITE)
-    screen.blit(edge_label, (300, HEIGHT - PANEL_HEIGHT + 100))
-    pygame.draw.rect(screen, LIGHT_BLUE if input_active['edge_prob'] else GRAY, input_boxes['edge_prob']['rect'], 2)
-    edge_text = FONT.render(input_boxes['edge_prob']['text'], True, BLACK)
-    screen.blit(edge_text, (input_boxes['edge_prob']['rect'].x + 5, input_boxes['edge_prob']['rect'].y + 5))
-
-    # Refresh Button
-    refresh_button_rect = input_boxes['refresh_button']['rect']
-    pygame.draw.rect(screen, GREEN if refresh_button_hover else GRAY, refresh_button_rect)
-    refresh_text = FONT.render("Refresh", True, BLACK)
-    screen.blit(refresh_text, (
-        refresh_button_rect.x + (refresh_button_rect.width - refresh_text.get_width()) // 2,
-        refresh_button_rect.y + (refresh_button_rect.height - refresh_text.get_height()) // 2
-    ))
-
-    # Refine Button
-    refine_button_rect = input_boxes['refine_button']['rect']
-    pygame.draw.rect(screen, GREEN if refine_button_hover else GRAY, refine_button_rect)
-    refine_text = FONT.render("Refine", True, BLACK)
+    # Disable refine button if no triangles are present
+    refine_button_color = GREEN if refine_button_hover and has_triangles else DARK_GRAY
+    pygame.draw.rect(screen, refine_button_color, refine_button_rect)
+    refine_text = FONT.render("Refine", True, BLACK if has_triangles else GRAY)
     screen.blit(refine_text, (
         refine_button_rect.x + (refine_button_rect.width - refine_text.get_width()) // 2,
         refine_button_rect.y + (refine_button_rect.height - refine_text.get_height()) // 2
@@ -995,7 +766,7 @@ def main():
                 # Check if click is on the Refine button
                 if input_boxes['refine_button']['rect'].collidepoint(event.pos):
                     if len(triangles) == 0:
-                        print("No triangles available to refine. Please start with a triangle graph.")
+                        print("No triangles available to refine. Please generate a graph with triangles.")
                     else:
                         # Perform one refinement step
                         nodes, adj_matrix, triangles = generate_refined_triangle(nodes, adj_matrix, triangles, num_refinements=1)
@@ -1008,6 +779,9 @@ def main():
                         if num_pairs <= 0:
                             raise ValueError
                         nodes, adj_matrix, pairs = collapse_nodes(nodes, adj_matrix, num_pairs)
+                        # Recompute triangles after shrinking
+                        triangles = find_triangles(nodes, adj_matrix)
+                        print(f"Collapsed {num_pairs} pairs of nodes and updated triangles.")
                     except ValueError:
                         print("Invalid input for number of node pairs to shrink.")
 
@@ -1137,7 +911,7 @@ def main():
         else:
             drag_mode_button_hover = False
 
-        if input_boxes['refine_button']['rect'].collidepoint((mouse_x, mouse_y)):
+        if input_boxes['refine_button']['rect'].collidepoint((mouse_x, mouse_y)) and len(triangles) > 0:
             refine_button_hover = True
         else:
             refine_button_hover = False
@@ -1220,7 +994,7 @@ def main():
                 int(input_boxes['num_nodes']['text']) if input_boxes['num_nodes']['text'].isdigit() else 0, 
                 float(input_boxes['edge_prob']['text']) if input_boxes['edge_prob']['text'].replace('.', '', 1).isdigit() else 0.0,
                 energy,
-                input_active, input_boxes, refresh_button_hover, drag_mode, drag_mode_button_hover, highlight_distance, refine_button_hover, shrink_button_hover)
+                input_active, input_boxes, refresh_button_hover, drag_mode, drag_mode_button_hover, highlight_distance, refine_button_hover, shrink_button_hover, len(triangles) > 0)
         pygame.display.flip()
         clock.tick(60)
 
