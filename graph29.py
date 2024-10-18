@@ -371,7 +371,7 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
     :param num_refinements: Number of times to perform the refinement.
     :return: Updated nodes, adj_matrix after refinement.
     """
-    print(adj_matrix)
+    # print(adj_matrix)
     
     n = len(nodes)  # number of original nodes
     try:
@@ -489,7 +489,7 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
             nodes[midpoint_ij].edges.append(centroid_vertex)
             nodes[midpoint_ik].edges.append(centroid_vertex)
             nodes[midpoint_jk].edges.append(centroid_vertex)
-    print(adj_matrix)
+    # print(adj_matrix)
     return nodes, new_adj_matrix
 
 
@@ -546,12 +546,12 @@ def collapse_nodes(nodes, adj_matrix, num_pairs):
         new_edges.discard(b_idx)
         new_edges = list(new_edges)
         new_node.edges = new_edges
-        print(adj_matrix)
+        # print(adj_matrix)
         # Update adjacency matrix
         adj_matrix.append([0] * (len(nodes)-1))  # New row for new node
         for row in adj_matrix:
             row.append(0)  # New column for new node
-        print(adj_matrix)
+        # print(adj_matrix)
 
         new_node_idx = len(nodes) - 1
         for neighbor_idx in new_edges:
