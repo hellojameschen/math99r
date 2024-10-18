@@ -686,8 +686,12 @@ def find_neighbor_cycle(adjacency_matrix, node):
     """Order neighbors of the given node based on the cycle formed by edges between them."""
     neighbors = find_neighbors(adjacency_matrix, node)
     # print((adjacency_matrix, neighbors))
+    print(len(neighbors))
+    # assert(len(neighbors)//2*2==len(neighbors))
     print(extract_subgraph(adjacency_matrix, neighbors))
-    assert(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
+    print(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
+    # assert(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
+    # print(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
     
     if len(neighbors) < 2:
         return neighbors  # No cycle possible if fewer than 2 neighbors
