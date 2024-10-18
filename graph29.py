@@ -631,9 +631,63 @@ def find_neighbors(adjacency_matrix, node):
     """Find all neighbors of a given node from the adjacency matrix."""
     return [i for i, connected in enumerate(adjacency_matrix[node]) if connected]
 
+def extract_subgraph(adjacency_matrix, nodes):
+    """
+    Extract the subgraph for the given nodes from the adjacency matrix.
+    
+    :param adjacency_matrix: The adjacency matrix of the larger graph.
+    :param nodes: List of nodes to form the subgraph.
+    :return: The adjacency matrix of the subgraph.
+    """
+    size = len(nodes)
+    subgraph_matrix = np.zeros((size, size), dtype=int)
+
+    # Iterate over the node pairs in the subgraph
+    for i, node in enumerate(nodes):
+        for j, neighbor in enumerate(nodes):
+            # Check the original adjacency matrix for an edge between node and neighbor
+            subgraph_matrix[i][j] = adjacency_matrix[node][neighbor]
+
+    return subgraph_matrix
+
+
+def is_unique_cycle(adj_matrix):
+    num_vertices = len(adj_matrix)
+    
+    # 1. Check that all vertices have degree 2
+    for i in range(num_vertices):
+        degree = sum(adj_matrix[i])
+        if degree != 2:
+            return False  # Not a cycle, degree must be exactly 2 for all vertices
+    
+    # 2. Check if the graph is connected
+    visited = [False] * num_vertices
+    
+    def dfs(v):
+        visited[v] = True
+        for u, is_edge in enumerate(adj_matrix[v]):
+            if is_edge and not visited[u]:
+                dfs(u)
+    
+    dfs(0)
+    
+    if not all(visited):
+        return False  # Not connected, so cannot be a cycle
+    
+    # 3. Check that the number of edges equals the number of vertices
+    num_edges = sum(sum(row) for row in adj_matrix) // 2
+    if num_edges != num_vertices:
+        return False  # A cycle must have exactly |V| edges
+    
+    return True  # The graph is a unique cycle
+
+
 def find_neighbor_cycle(adjacency_matrix, node):
     """Order neighbors of the given node based on the cycle formed by edges between them."""
     neighbors = find_neighbors(adjacency_matrix, node)
+    # print((adjacency_matrix, neighbors))
+    print(extract_subgraph(adjacency_matrix, neighbors))
+    assert(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
     
     if len(neighbors) < 2:
         return neighbors  # No cycle possible if fewer than 2 neighbors
@@ -648,6 +702,21 @@ def find_neighbor_cycle(adjacency_matrix, node):
                 cycle.append(neighbor)
                 visited.add(neighbor)
                 break
+        #     if neighbor == neighbors[-1]: # looked through all neighbors no path found
+        #         raise TypeError('NO loop')
+            
+        # for neighbor in neighbors:
+        #     if len(cycle) != len(set(cycle)):
+        #         raise TypeError('Multiple loops')
+            
+        
+        
+        # # first and last in cycle must be connected
+        # if not adjacency_matrix[cycle[-1]][neighbor]:
+        #         # print(adjacency_matrix[cycle[-1]][cycle[0]])
+        #         # print(adjacency_matrix)
+        #         raise TypeError('first and last in cycle not connected')
+        
     
     return cycle
 
