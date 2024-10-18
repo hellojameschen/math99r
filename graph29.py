@@ -371,8 +371,13 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
     :param num_refinements: Number of times to perform the refinement.
     :return: Updated nodes, adj_matrix after refinement.
     """
-    import numpy as np
+    print(adj_matrix)
+    
     n = len(nodes)  # number of original nodes
+    try:
+        adj_matrix = np.array(adj_matrix)
+    except:
+        pass
 
     for _ in range(num_refinements):
         edges_in_triangles = set()
@@ -484,7 +489,7 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
             nodes[midpoint_ij].edges.append(centroid_vertex)
             nodes[midpoint_ik].edges.append(centroid_vertex)
             nodes[midpoint_jk].edges.append(centroid_vertex)
-
+    print(adj_matrix)
     return nodes, new_adj_matrix
 
 
@@ -501,7 +506,11 @@ def collapse_nodes(nodes, adj_matrix, num_pairs):
     :param num_pairs: Number of node pairs to collapse.
     :return: Updated nodes, adj_matrix, and list of collapsed pairs.
     """
-    adj_matrix = adj_matrix.tolist()
+    
+    try:
+        adj_matrix = adj_matrix.tolist()
+    except:
+        pass
     num_nodes = len(nodes)
     if num_pairs <= 0:
         print("Number of pairs to collapse must be positive.")
@@ -537,11 +546,12 @@ def collapse_nodes(nodes, adj_matrix, num_pairs):
         new_edges.discard(b_idx)
         new_edges = list(new_edges)
         new_node.edges = new_edges
-
+        print(adj_matrix)
         # Update adjacency matrix
-        adj_matrix.append([0] * len(nodes))  # New row for new node
+        adj_matrix.append([0] * (len(nodes)-1))  # New row for new node
         for row in adj_matrix:
             row.append(0)  # New column for new node
+        print(adj_matrix)
 
         new_node_idx = len(nodes) - 1
         for neighbor_idx in new_edges:
@@ -578,6 +588,7 @@ def collapse_nodes(nodes, adj_matrix, num_pairs):
         del adj_matrix[idx]
     # Remove corresponding columns
     for row in adj_matrix:
+
         for idx in collapsed_nodes:
             del row[idx]
 
@@ -939,11 +950,8 @@ def main():
             previous_node = path[-2]
             antipodal = find_antipodal_neighbor(adj_matrix, previous_node, current_node)
             if antipodal is not None:
-                if antipodal in path:
-                    print("Cycle detected. Traversal stopped.")
-                else:
-                    path.append(antipodal)
-                    print(f"Extended path to node {antipodal}.")
+                path.append(antipodal)
+                print(f"Extended path to node {antipodal}.")
             else:
                 print("No antipodal neighbor found. Traversal stopped.")
 
