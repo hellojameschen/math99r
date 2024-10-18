@@ -28,7 +28,7 @@ RED = (255, 0, 0)
 
 # Slider Parameters for Path Length
 MIN_SLIDER = 1
-MAX_SLIDER = 100
+MAX_SLIDER = 1000
 SLIDER_WIDTH = 200
 SLIDER_HEIGHT = 20
 slider_value = 5  # Initial path length
@@ -525,6 +525,36 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
     # print(adj_matrix)
     return nodes, new_adj_matrix
 
+def is_edge_in_4_cycle_no_triangle(node1, node2, adjacency_matrix):
+    """
+    Given two nodes and an adjacency matrix, checks if the edge (node1, node2) is part of a 4-cycle
+    with no triangles among the nodes of that 4-cycle.
+    
+    :param node1: The first node (index or identifier in the adjacency matrix).
+    :param node2: The second node (index or identifier in the adjacency matrix).
+    :param adjacency_matrix: A 2D list or numpy array representing the adjacency matrix of the graph.
+    :return: True if there is a 4-cycle including the edge (node1, node2) with no triangles among its nodes, False otherwise.
+    """
+    n = len(adjacency_matrix)  # Assuming adjacency_matrix is square
+
+    # Get neighbors for node1, excluding node2 to prevent trivial cycles
+    neighbors_node1 = {i for i in range(n) if adjacency_matrix[node1][i] != 0 and i != node2}
+    
+    # Get neighbors for node2, excluding node1 to prevent trivial cycles
+    neighbors_node2 = {i for i in range(n) if adjacency_matrix[node2][i] != 0 and i != node1}
+    
+    # Iterate through all possible pairs of neighbors
+    for neighbor1 in neighbors_node1:
+        for neighbor2 in neighbors_node2:
+            if adjacency_matrix[neighbor1][neighbor2] != 0:
+                # Check for absence of diagonals to prevent triangles
+                if adjacency_matrix[node1][neighbor2] == 0 and adjacency_matrix[node2][neighbor1] == 0:
+                    return True  # Found a valid 4-cycle with no triangles
+
+    return False  # No such 4-cycle found
+
+
+
 def select_random_edges_from_adjacency(adjacency_matrix, num_pairs):
     num_nodes = len(adjacency_matrix)
     
@@ -541,7 +571,7 @@ def select_random_edges_from_adjacency(adjacency_matrix, num_pairs):
         node1, node2 = edge
 
         # Ensure that neither node1 nor node2 has been used in previous pairs
-        if node1 not in used_nodes and node2 not in used_nodes:
+        if node1 not in used_nodes and node2 not in used_nodes and not is_edge_in_4_cycle_no_triangle(node1, node2, adjacency_matrix):
             selected_pairs.append((node1, node2))
             used_nodes.add(node1)
             used_nodes.add(node2)
@@ -894,8 +924,9 @@ def main():
             ordered_neighbors_dict[node_index] = ordered
         else:
             # Fallback to angle-based ordering
-            ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
-            ordered_neighbors_dict[node_index] = ordered
+            # ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
+            # ordered_neighbors_dict[node_index] = ordered
+            pass
 
     # Path Traversal Parameters
     path = []  # List to store the traversal path as node indices
@@ -986,8 +1017,9 @@ def main():
                             ordered_neighbors_dict[node_index] = ordered
                         else:
                             # Fallback to angle-based ordering
-                            ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
-                            ordered_neighbors_dict[node_index] = ordered
+                            # ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
+                            # ordered_neighbors_dict[node_index] = ordered
+                            pass
                     # Recompute triangles after shrinking
                     triangles = find_triangles(nodes, adj_matrix)
                     print(f"Collapsed {num_pairs} pairs of nodes.")

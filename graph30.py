@@ -870,8 +870,9 @@ def main():
             ordered_neighbors_dict[node_index] = ordered
         else:
             # Fallback to angle-based ordering
-            ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
-            ordered_neighbors_dict[node_index] = ordered
+            # ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
+            # ordered_neighbors_dict[node_index] = ordered
+            pass
 
     # Path Traversal Parameters
     path = []  # List to store the traversal path as node indices
