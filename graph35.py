@@ -34,8 +34,8 @@ SLIDER_HEIGHT = 20
 slider_value = 5  # Initial path length
 
 # **ADDED: Slider Parameters for Zoom**
-MIN_ZOOM = 10    # Represents 0.5x
-MAX_ZOOM = 200   # Represents 3.0x
+MIN_ZOOM = 50    # Represents 0.5x
+MAX_ZOOM = 300   # Represents 3.0x
 INITIAL_ZOOM = 100  # Represents 1.0x
 ZOOM_SLIDER_WIDTH = 200
 ZOOM_SLIDER_HEIGHT = 20
@@ -159,8 +159,8 @@ def world_to_screen(node_x, node_y, zoom, offset_x, offset_y):
     """
     screen_center_x = WIDTH / 2
     screen_center_y = (HEIGHT - PANEL_HEIGHT) / 2
-    x_screen = (node_x + offset_x) * zoom + screen_center_x * (1 - zoom)
-    y_screen = (node_y + offset_y) * zoom + screen_center_y * (1 - zoom)
+    x_screen = screen_center_x + (node_x + offset_x) * zoom
+    y_screen = screen_center_y + (node_y + offset_y) * zoom
     return x_screen, y_screen
 
 def screen_to_world(mouse_x, mouse_y, zoom, offset_x, offset_y):
@@ -169,8 +169,8 @@ def screen_to_world(mouse_x, mouse_y, zoom, offset_x, offset_y):
     """
     screen_center_x = WIDTH / 2
     screen_center_y = (HEIGHT - PANEL_HEIGHT) / 2
-    node_x = (mouse_x - screen_center_x * (1 - zoom)) / zoom - offset_x
-    node_y = (mouse_y - screen_center_y * (1 - zoom)) / zoom - offset_y
+    node_x = (mouse_x - screen_center_x) / zoom - offset_x
+    node_y = (mouse_y - screen_center_y) / zoom - offset_y
     return node_x, node_y
 # **END ADDED**
 
@@ -185,12 +185,12 @@ def generate_octahedron_graph():
 
     # Octahedron has 6 vertices: one top, one bottom, and four around the center
     positions = [
-        (center_x, center_y - radius),          # Top node (0)
-        (center_x, center_y + radius),          # Bottom node (1)
-        (center_x - radius, center_y),          # Left node (2)
-        (center_x + radius, center_y),          # Right node (3)
-        (center_x, center_y - radius // 2),      # Upper-middle node (4)
-        (center_x, center_y + radius // 2)       # Lower-middle node (5)
+        (0, -radius),          # Top node (0)
+        (0, radius),           # Bottom node (1)
+        (-radius, 0),          # Left node (2)
+        (radius, 0),           # Right node (3)
+        (0, -radius // 2),     # Upper-middle node (4)
+        (0, radius // 2)       # Lower-middle node (5)
     ]
 
     # Create nodes and set positions
@@ -439,7 +439,7 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
             x_mid = (nodes[i].x + nodes[j].x) / 2
             y_mid = (nodes[i].y + nodes[j].y) / 2
 
-            # Add a new vertex (Node) at the midpoint of edge (i, j)
+            # Add a new vertex at the midpoint of edge (i, j)
             midpoint_vertex = current_vertex
             midpoint_node = Node(x_mid, y_mid)
             nodes.append(midpoint_node)
@@ -478,7 +478,7 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
             x_centroid = (nodes[i].x + nodes[j].x + nodes[k].x) / 3
             y_centroid = (nodes[i].y + nodes[j].y + nodes[k].y) / 3
 
-            # Add a new vertex (Node) for the centroid
+            # Add a new vertex for the centroid
             centroid_vertex = current_vertex
             centroid_node = Node(x_centroid, y_centroid)
             nodes.append(centroid_node)
@@ -529,7 +529,7 @@ def is_edge_in_4_cycle_no_triangle(node1, node2, adjacency_matrix):
     """
     Given two nodes and an adjacency matrix, checks if the edge (node1, node2) is part of a 4-cycle
     with no triangles among the nodes of that 4-cycle.
-    
+
     :param node1: The first node (index or identifier in the adjacency matrix).
     :param node2: The second node (index or identifier in the adjacency matrix).
     :param adjacency_matrix: A 2D list or numpy array representing the adjacency matrix of the graph.
@@ -552,8 +552,6 @@ def is_edge_in_4_cycle_no_triangle(node1, node2, adjacency_matrix):
                     return True  # Found a valid 4-cycle with no triangles
 
     return False  # No such 4-cycle found
-
-
 
 def select_random_edges_from_adjacency(adjacency_matrix, num_pairs):
     num_nodes = len(adjacency_matrix)
@@ -785,8 +783,6 @@ def find_neighbor_cycle(adjacency_matrix, node):
                 visited.add(neighbor)
                 break
 
-        
-    
     return cycle
 
 def find_antipodal_neighbor(adjacency_matrix, first_vertex, second_vertex):
@@ -895,7 +891,9 @@ def draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, n
         "4. The path will automatically extend up to the slider's value.",
         "5. Press 'R' to reset the traversal.",
         "6. Click 'Refine' to perform barycentric refinement.",
-        "7. Enter the number of node pairs to shrink and click 'Shrink'."
+        "7. Enter the number of node pairs to shrink and click 'Shrink'.",
+        "8. Click 'Reset' to revert the graph to its initial state.",
+        "9. Click and drag on the background to pan around."
     ]
     for i, text in enumerate(instructions):
         instr_surface = FONT_SMALL.render(text, True, WHITE)
@@ -906,28 +904,34 @@ def main():
     global slider_value, zoom_slider_value
     clock = pygame.time.Clock()
     running = True
-    dragged_node = None        # Currently dragged node
+    dragged_node = None  # Currently dragged node
 
     # Zoom and Pan parameters
     zoom_slider_value = INITIAL_ZOOM  # **ADDED: Initialize zoom_slider_value**
-    zoom = zoom_slider_value / 100.0  # Convert to float (1.0)
+    zoom = zoom_slider_value / 100.0  # Convert slider value to zoom factor (1.0x)
     offset_x = 0
     offset_y = 0
 
-    # Generate the initial graph as an octahedron
-    nodes, adj_matrix = generate_octahedron_graph()
-
-    # Compute ordered neighbors for each node
+    # **ADDED: Initialize ordered_neighbors_dict before defining initialize_graph**
     ordered_neighbors_dict = {}
-    for node_index in range(len(nodes)):
-        ordered = get_ordered_neighbors_by_cycle(adj_matrix, node_index)
-        if ordered:
-            ordered_neighbors_dict[node_index] = ordered
-        else:
-            # Fallback to angle-based ordering
-            # ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
-            # ordered_neighbors_dict[node_index] = ordered
-            pass
+    # **END ADDED**
+
+    # Function to initialize the graph
+    def initialize_graph():
+        nodes, adj_matrix = generate_octahedron_graph()
+        ordered_neighbors_dict.clear()
+        for node_index in range(len(nodes)):
+            ordered = get_ordered_neighbors_by_cycle(adj_matrix, node_index)
+            if ordered:
+                ordered_neighbors_dict[node_index] = ordered
+            else:
+                # Optionally, use angle-based ordering if cycle ordering fails
+                pass
+        triangles = find_triangles(nodes, adj_matrix)
+        return nodes, adj_matrix, triangles
+
+    # Initialize the graph
+    nodes, adj_matrix, triangles = initialize_graph()
 
     # Path Traversal Parameters
     path = []  # List to store the traversal path as node indices
@@ -960,7 +964,7 @@ def main():
     )
     # **END ADDED**
 
-    # Create Buttons for Barycentric Refinement and Shrink Nodes
+    # Create Buttons for Barycentric Refinement, Shrink Nodes, and Reset
     refine_button = Button(
         x=WIDTH - 300,
         y=HEIGHT - PANEL_HEIGHT + 140,
@@ -977,16 +981,33 @@ def main():
         text="Shrink"
     )
 
-    buttons = [refine_button, shrink_button]
+    # **ADDED: Create Reset Button**
+    reset_button = Button(
+        x=WIDTH - 180,  # Adjust X to avoid overlap; may need to shift existing buttons
+        y=HEIGHT - PANEL_HEIGHT + 180,
+        width=SHRINK_BUTTON_WIDTH,
+        height=SHRINK_BUTTON_HEIGHT,
+        text="Reset"
+    )
+    # **END ADDED**
+
+    buttons = [refine_button, shrink_button, reset_button]
 
     # Initialize list of triangles
-    triangles = find_triangles(nodes, adj_matrix)
+    # triangles = find_triangles(nodes, adj_matrix)
+    # already computed in initialize_graph
 
     # Input Text for Shrink Nodes
     shrink_input_text = "1"  # Default number of pairs to shrink
 
     # **ADDED: List of Sliders**
     sliders = [path_length_slider, zoom_slider]
+    # **END ADDED**
+
+    # **ADDED: Panning State Variables**
+    is_panning = False
+    pan_start_x, pan_start_y = 0, 0
+    initial_offset_x, initial_offset_y = 0, 0
     # **END ADDED**
 
     while running:
@@ -1018,14 +1039,22 @@ def main():
                             ordered_neighbors_dict[node_index] = ordered
                         else:
                             # Fallback to angle-based ordering
-                            # ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
-                            # ordered_neighbors_dict[node_index] = ordered
                             pass
                     # Recompute triangles after shrinking
                     triangles = find_triangles(nodes, adj_matrix)
                     print(f"Collapsed {num_pairs} pairs of nodes.")
                 except ValueError:
                     print("Invalid input for number of node pairs to shrink.")
+
+            # **ADDED: Handle Reset Button Events**
+            if reset_button.handle_event(event):
+                # Perform reset action
+                nodes, adj_matrix, triangles = initialize_graph()
+                path = []
+                selected_nodes = []
+                shrink_input_text = "1"
+                print("Graph has been reset to the initial octahedron.")
+            # **END ADDED**
 
             if event.type == pygame.QUIT:
                 running = False
@@ -1036,6 +1065,7 @@ def main():
                 # Check if clicking within the drawing area
                 if mouse_y < HEIGHT - PANEL_HEIGHT:
                     # Check if a node is clicked
+                    node_clicked = False
                     for idx, node in enumerate(nodes):
                         x_screen, y_screen = world_to_screen(node.x, node.y, zoom, offset_x, offset_y)  # **MODIFIED**
                         node_radius = 6
@@ -1053,7 +1083,39 @@ def main():
                                     else:
                                         print(f"No edge exists between node {node_a} and node {node_b}.")
                                         selected_nodes = []  # Reset selection
+                            # Initiate node dragging
+                            dragged_node = node
+                            node.fixed = True
+                            node_clicked = True
                             break  # Only one node can be selected at a time
+
+                    if not node_clicked:
+                        # **ADDED: Initiate Panning if background is clicked**
+                        is_panning = True
+                        pan_start_x, pan_start_y = mouse_x, mouse_y
+                        initial_offset_x, initial_offset_y = offset_x, offset_y
+                        # **END ADDED**
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                # **ADDED: Terminate Panning**
+                if is_panning:
+                    is_panning = False
+                # Terminate node dragging
+                if dragged_node:
+                    dragged_node.fixed = False
+                    dragged_node = None
+                # **END ADDED**
+
+            elif event.type == pygame.MOUSEMOTION:
+                # **ADDED: Handle Panning**
+                if is_panning:
+                    mouse_x, mouse_y = event.pos
+                    dx = mouse_x - pan_start_x
+                    dy = mouse_y - pan_start_y
+                    # Update offsets based on movement delta and zoom
+                    offset_x = initial_offset_x + dx / zoom
+                    offset_y = initial_offset_y + dy / zoom
+                # **END ADDED**
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:

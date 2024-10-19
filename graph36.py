@@ -10,7 +10,7 @@ pygame.init()
 WIDTH, HEIGHT = 800, 750  # Screen dimensions
 PANEL_HEIGHT = 200        # Height reserved for the UI panel
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Force-Directed Graph with Octahedron Initialization")
+pygame.display.set_caption("Force-Directed Graph with Octahedron and Torus Initialization")
 
 # Define Colors
 WHITE = (255, 255, 255)
@@ -33,13 +33,12 @@ SLIDER_WIDTH = 200
 SLIDER_HEIGHT = 20
 slider_value = 5  # Initial path length
 
-# **ADDED: Slider Parameters for Zoom**
-MIN_ZOOM = 10    # Represents 0.5x
-MAX_ZOOM = 200   # Represents 3.0x
+# Slider Parameters for Zoom
+MIN_ZOOM = 50    # Represents 0.5x
+MAX_ZOOM = 300   # Represents 3.0x
 INITIAL_ZOOM = 100  # Represents 1.0x
 ZOOM_SLIDER_WIDTH = 200
 ZOOM_SLIDER_HEIGHT = 20
-# **END ADDED**
 
 # Additional Slider Parameters for Barycentric Refinement and Shrink Nodes
 # (Optional: Adjust as needed)
@@ -152,15 +151,57 @@ class Button:
                 return True  # Button was clicked
         return False
 
-# **ADDED: Helper Functions for Coordinate Transformation**
+# DropDown Class
+class DropDown:
+    def __init__(self, x, y, width, height, options, default_index=0):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.options = options
+        self.selected = self.options[default_index]
+        self.expanded = False
+
+    def draw(self, surface):
+        # Draw the main rectangle
+        pygame.draw.rect(surface, WHITE, self.rect)
+        pygame.draw.rect(surface, BLACK, self.rect, 2)
+
+        # Draw the selected option
+        text_surf = FONT.render(self.selected, True, BLACK)
+        surface.blit(text_surf, (self.rect.x + 5, self.rect.y + (self.rect.height - text_surf.get_height()) // 2))
+
+        # If expanded, draw the options
+        if self.expanded:
+            for i, option in enumerate(self.options):
+                option_rect = pygame.Rect(self.rect.x, self.rect.y + (i + 1) * self.rect.height, self.rect.width, self.rect.height)
+                pygame.draw.rect(surface, WHITE, option_rect)
+                pygame.draw.rect(surface, BLACK, option_rect, 2)
+                text_surf = FONT.render(option, True, BLACK)
+                surface.blit(text_surf, (option_rect.x + 5, option_rect.y + (option_rect.height - text_surf.get_height()) // 2))
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_x, mouse_y = event.pos
+            if self.rect.collidepoint(mouse_x, mouse_y):
+                self.expanded = not self.expanded
+                return None
+            elif self.expanded:
+                for i, option in enumerate(self.options):
+                    option_rect = pygame.Rect(self.rect.x, self.rect.y + (i + 1) * self.rect.height, self.rect.width, self.rect.height)
+                    if option_rect.collidepoint(mouse_x, mouse_y):
+                        self.selected = option
+                        self.expanded = False
+                        return option
+                self.expanded = False
+        return None
+
+# Helper Functions for Coordinate Transformation
 def world_to_screen(node_x, node_y, zoom, offset_x, offset_y):
     """
     Converts world coordinates to screen coordinates centered on the middle of the screen.
     """
     screen_center_x = WIDTH / 2
     screen_center_y = (HEIGHT - PANEL_HEIGHT) / 2
-    x_screen = (node_x + offset_x) * zoom + screen_center_x * (1 - zoom)
-    y_screen = (node_y + offset_y) * zoom + screen_center_y * (1 - zoom)
+    x_screen = screen_center_x + (node_x + offset_x) * zoom
+    y_screen = screen_center_y + (node_y + offset_y) * zoom
     return x_screen, y_screen
 
 def screen_to_world(mouse_x, mouse_y, zoom, offset_x, offset_y):
@@ -169,10 +210,9 @@ def screen_to_world(mouse_x, mouse_y, zoom, offset_x, offset_y):
     """
     screen_center_x = WIDTH / 2
     screen_center_y = (HEIGHT - PANEL_HEIGHT) / 2
-    node_x = (mouse_x - screen_center_x * (1 - zoom)) / zoom - offset_x
-    node_y = (mouse_y - screen_center_y * (1 - zoom)) / zoom - offset_y
+    node_x = (mouse_x - screen_center_x) / zoom - offset_x
+    node_y = (mouse_y - screen_center_y) / zoom - offset_y
     return node_x, node_y
-# **END ADDED**
 
 # Generate Octahedron Graph
 def generate_octahedron_graph():
@@ -185,12 +225,12 @@ def generate_octahedron_graph():
 
     # Octahedron has 6 vertices: one top, one bottom, and four around the center
     positions = [
-        (center_x, center_y - radius),          # Top node (0)
-        (center_x, center_y + radius),          # Bottom node (1)
-        (center_x - radius, center_y),          # Left node (2)
-        (center_x + radius, center_y),          # Right node (3)
-        (center_x, center_y - radius // 2),      # Upper-middle node (4)
-        (center_x, center_y + radius // 2)       # Lower-middle node (5)
+        (0, -radius),          # Top node (0)
+        (0, radius),           # Bottom node (1)
+        (-radius, 0),          # Left node (2)
+        (radius, 0),           # Right node (3)
+        (0, -radius // 2),     # Upper-middle node (4)
+        (0, radius // 2)       # Lower-middle node (5)
     ]
 
     # Create nodes and set positions
@@ -211,6 +251,29 @@ def generate_octahedron_graph():
         nodes[i].edges.append(j)
         nodes[j].edges.append(i)
 
+    return nodes, adj_matrix
+
+# Generate Torus Graph Function
+def generate_torus_graph(adjacency_matrix):
+    nodes = []
+    num_nodes = len(adjacency_matrix)
+    radius = 150  # Radius for circular layout
+
+    # Arrange nodes in a circle for better visualization
+    for i in range(num_nodes):
+        angle = 2 * math.pi * i / num_nodes
+        x = radius * math.cos(angle)
+        y = radius * math.sin(angle)
+        nodes.append(Node(x, y))
+
+    # Assign edges based on the adjacency matrix
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if adjacency_matrix[i][j] == 1 and j > i:  # Avoid duplicate edges
+                nodes[i].edges.append(j)
+                nodes[j].edges.append(i)
+
+    adj_matrix = np.array(adjacency_matrix)
     return nodes, adj_matrix
 
 # Apply Forces to Nodes
@@ -404,8 +467,6 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
     :param num_refinements: Number of times to perform the refinement.
     :return: Updated nodes, adj_matrix after refinement.
     """
-    # print(adj_matrix)
-    
     n = len(nodes)  # number of original nodes
     try:
         adj_matrix = np.array(adj_matrix)
@@ -439,7 +500,7 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
             x_mid = (nodes[i].x + nodes[j].x) / 2
             y_mid = (nodes[i].y + nodes[j].y) / 2
 
-            # Add a new vertex (Node) at the midpoint of edge (i, j)
+            # Add a new vertex at the midpoint of edge (i, j)
             midpoint_vertex = current_vertex
             midpoint_node = Node(x_mid, y_mid)
             nodes.append(midpoint_node)
@@ -478,7 +539,7 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
             x_centroid = (nodes[i].x + nodes[j].x + nodes[k].x) / 3
             y_centroid = (nodes[i].y + nodes[j].y + nodes[k].y) / 3
 
-            # Add a new vertex (Node) for the centroid
+            # Add a new vertex for the centroid
             centroid_vertex = current_vertex
             centroid_node = Node(x_centroid, y_centroid)
             nodes.append(centroid_node)
@@ -523,13 +584,13 @@ def generate_refined_graph(nodes, adj_matrix, num_refinements=1):
             nodes[midpoint_ik].edges.append(centroid_vertex)
             nodes[midpoint_jk].edges.append(centroid_vertex)
     # print(adj_matrix)
-    return nodes, new_adj_matrix
+        return nodes, new_adj_matrix
 
 def is_edge_in_4_cycle_no_triangle(node1, node2, adjacency_matrix):
     """
     Given two nodes and an adjacency matrix, checks if the edge (node1, node2) is part of a 4-cycle
     with no triangles among the nodes of that 4-cycle.
-    
+
     :param node1: The first node (index or identifier in the adjacency matrix).
     :param node2: The second node (index or identifier in the adjacency matrix).
     :param adjacency_matrix: A 2D list or numpy array representing the adjacency matrix of the graph.
@@ -552,8 +613,6 @@ def is_edge_in_4_cycle_no_triangle(node1, node2, adjacency_matrix):
                     return True  # Found a valid 4-cycle with no triangles
 
     return False  # No such 4-cycle found
-
-
 
 def select_random_edges_from_adjacency(adjacency_matrix, num_pairs):
     num_nodes = len(adjacency_matrix)
@@ -590,7 +649,7 @@ def collapse_nodes(nodes, adj_matrix, num_pairs):
     :param nodes: List of Node objects.
     :param adj_matrix: Adjacency matrix representing the graph.
     :param num_pairs: Number of node pairs to collapse.
-    :return: Updated nodes, adj_matrix, and list of collapsed pairs.
+    :return: Updated nodes, adj_matrix
     """
     
     try:
@@ -600,10 +659,10 @@ def collapse_nodes(nodes, adj_matrix, num_pairs):
     num_nodes = len(nodes)
     if num_pairs <= 0:
         print("Number of pairs to collapse must be positive.")
-        return nodes, adj_matrix, []
+        return nodes, adj_matrix
     if 2 * num_pairs > num_nodes:
         print("Not enough nodes to collapse the specified number of pairs.")
-        return nodes, adj_matrix, []
+        return nodes, adj_matrix
 
     for _ in range(num_pairs):
         pairs = select_random_edges_from_adjacency(adj_matrix, 1)
@@ -627,12 +686,11 @@ def collapse_nodes(nodes, adj_matrix, num_pairs):
             new_edges.discard(b_idx)
             new_edges = list(new_edges)
             new_node.edges = new_edges
-            # print(adj_matrix)
+
             # Update adjacency matrix
             adj_matrix.append([0] * (len(nodes)-1))  # New row for new node
             for row in adj_matrix:
                 row.append(0)  # New column for new node
-            # print(adj_matrix)
 
             new_node_idx = len(nodes) - 1
             for neighbor_idx in new_edges:
@@ -785,13 +843,13 @@ def find_neighbor_cycle(adjacency_matrix, node):
                 visited.add(neighbor)
                 break
 
-        
-    
     return cycle
 
 def find_antipodal_neighbor(adjacency_matrix, first_vertex, second_vertex):
     """Find the antipodal neighbor of first_vertex with respect to second_vertex."""
     neighbors_of_second = find_neighbor_cycle(adjacency_matrix, second_vertex)
+    if first_vertex not in neighbors_of_second:
+        return None
     first_index = neighbors_of_second.index(first_vertex)
     antipodal_index = (first_index + len(neighbors_of_second) // 2) % len(neighbors_of_second)
     return neighbors_of_second[antipodal_index]
@@ -802,6 +860,8 @@ def find_antipodal_path(adjacency_matrix, start_vertex, next_vertex, steps):
     
     for _ in range(steps - 2):  # Already have 2 vertices in the path, so do steps-2
         new_vertex = find_antipodal_neighbor(adjacency_matrix, path[-2], path[-1])
+        if new_vertex is None:
+            break
         path.append(new_vertex)
     
     return path
@@ -854,7 +914,7 @@ def draw_graph(screen, nodes, adj_matrix, zoom, offset_x, offset_y, dragged_node
             pygame.draw.circle(screen, color, (int(x), int(y)), 6 if node == dragged_node else 4)
 
 # Draw UI Panel
-def draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, num_edges):
+def draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, num_edges, dropdown):
     # Define the panel area
     panel_rect = pygame.Rect(0, HEIGHT - PANEL_HEIGHT, WIDTH, PANEL_HEIGHT)
     pygame.draw.rect(screen, DARK_GRAY, panel_rect)
@@ -866,6 +926,9 @@ def draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, n
     # Draw Buttons
     for button in buttons:
         button.draw(screen)
+
+    # Draw Drop-Down Menu
+    dropdown.draw(screen)
 
     # Draw Shrink Nodes Input Field
     shrink_label = FONT.render("Shrink Pairs:", True, WHITE)
@@ -879,12 +942,11 @@ def draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, n
     energy_text = FONT.render(f"Energy: {energy:.2f}", True, WHITE)
     screen.blit(energy_text, (WIDTH // 2 - energy_text.get_width() // 2, HEIGHT - PANEL_HEIGHT + 150))
 
-    # **Newly Added: Display Number of Vertices and Edges**
+    # Display Number of Vertices and Edges
     vertex_count_text = FONT.render(f"Vertices: {num_vertices}", True, WHITE)
     edge_count_text = FONT.render(f"Edges: {num_edges}", True, WHITE)
     screen.blit(vertex_count_text, (WIDTH - 300, HEIGHT - PANEL_HEIGHT + 50))
     screen.blit(edge_count_text, (WIDTH - 300, HEIGHT - PANEL_HEIGHT + 80))
-    # **End of Newly Added Code**
 
     # Instructions
     instructions = [
@@ -895,7 +957,9 @@ def draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, n
         "4. The path will automatically extend up to the slider's value.",
         "5. Press 'R' to reset the traversal.",
         "6. Click 'Refine' to perform barycentric refinement.",
-        "7. Enter the number of node pairs to shrink and click 'Shrink'."
+        "7. Enter the number of node pairs to shrink and click 'Shrink'.",
+        "8. Click 'Reset' to revert the graph to its initial state.",
+        "9. Click and drag on the background to pan around."
     ]
     for i, text in enumerate(instructions):
         instr_surface = FONT_SMALL.render(text, True, WHITE)
@@ -906,28 +970,64 @@ def main():
     global slider_value, zoom_slider_value
     clock = pygame.time.Clock()
     running = True
-    dragged_node = None        # Currently dragged node
+    dragged_node = None  # Currently dragged node
 
     # Zoom and Pan parameters
     zoom_slider_value = INITIAL_ZOOM  # **ADDED: Initialize zoom_slider_value**
-    zoom = zoom_slider_value / 100.0  # Convert to float (1.0)
+    zoom = zoom_slider_value / 100.0  # Convert slider value to zoom factor (1.0x)
     offset_x = 0
     offset_y = 0
 
-    # Generate the initial graph as an octahedron
-    nodes, adj_matrix = generate_octahedron_graph()
-
-    # Compute ordered neighbors for each node
+    # Initialize ordered_neighbors_dict before defining initialize_graph
     ordered_neighbors_dict = {}
-    for node_index in range(len(nodes)):
-        ordered = get_ordered_neighbors_by_cycle(adj_matrix, node_index)
-        if ordered:
-            ordered_neighbors_dict[node_index] = ordered
+
+    # Function to initialize the graph
+    def initialize_graph(graph_type='Octahedron'):
+        if graph_type == 'Octahedron':
+            nodes, adj_matrix = generate_octahedron_graph()
+        elif graph_type == 'Torus':
+            torus_adj_matrix = [
+                [0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
+                [1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0],
+                [1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0],
+                [1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1],
+                [1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1],
+                [1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0],
+                [1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1],
+                [0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0],
+                [0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1],
+                [0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1],
+                [0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0],
+                [0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1],
+                [0, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 0]
+            ]
+            nodes, adj_matrix = generate_torus_graph(torus_adj_matrix)
         else:
-            # Fallback to angle-based ordering
-            # ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
-            # ordered_neighbors_dict[node_index] = ordered
-            pass
+            raise ValueError("Unsupported graph type. Choose 'Octahedron' or 'Torus'.")
+
+        ordered_neighbors_dict.clear()
+        for node_index in range(len(nodes)):
+            ordered = get_ordered_neighbors_by_cycle(adj_matrix, node_index)
+            if ordered:
+                ordered_neighbors_dict[node_index] = ordered
+            else:
+                # Optionally, use angle-based ordering if cycle ordering fails
+                pass
+        triangles = find_triangles(nodes, adj_matrix)
+        return nodes, adj_matrix, triangles
+
+    # Initialize the drop-down menu for graph selection
+    graph_dropdown = DropDown(
+        x=10,  # X-position within the panel
+        y=HEIGHT - PANEL_HEIGHT + 10,  # Y-position within the panel
+        width=150,
+        height=30,
+        options=['Octahedron', 'Torus'],
+        default_index=0  # Default to Octahedron
+    )
+
+    # Initialize the graph based on the selected graph type
+    nodes, adj_matrix, triangles = initialize_graph(graph_dropdown.selected)
 
     # Path Traversal Parameters
     path = []  # List to store the traversal path as node indices
@@ -947,7 +1047,7 @@ def main():
         label="Path Length"
     )
 
-    # **ADDED: Create Slider for Zoom**
+    # Create Slider for Zoom
     zoom_slider = Slider(
         x=WIDTH // 2 - ZOOM_SLIDER_WIDTH // 2,
         y=HEIGHT - PANEL_HEIGHT // 2 - ZOOM_SLIDER_HEIGHT // 2 - 40,  # Positioned above path slider
@@ -958,9 +1058,8 @@ def main():
         initial_val=INITIAL_ZOOM,
         label="Zoom"
     )
-    # **END ADDED**
 
-    # Create Buttons for Barycentric Refinement and Shrink Nodes
+    # Create Buttons for Barycentric Refinement, Shrink Nodes, and Reset
     refine_button = Button(
         x=WIDTH - 300,
         y=HEIGHT - PANEL_HEIGHT + 140,
@@ -977,23 +1076,42 @@ def main():
         text="Shrink"
     )
 
-    buttons = [refine_button, shrink_button]
+    # Create Reset Button
+    reset_button = Button(
+        x=WIDTH - 180,  # Adjust X to avoid overlap; may need to shift existing buttons
+        y=HEIGHT - PANEL_HEIGHT + 180,
+        width=SHRINK_BUTTON_WIDTH,
+        height=SHRINK_BUTTON_HEIGHT,
+        text="Reset"
+    )
+
+    buttons = [refine_button, shrink_button, reset_button]
 
     # Initialize list of triangles
-    triangles = find_triangles(nodes, adj_matrix)
+    # triangles = find_triangles(nodes, adj_matrix)
+    # already computed in initialize_graph
 
     # Input Text for Shrink Nodes
     shrink_input_text = "1"  # Default number of pairs to shrink
 
-    # **ADDED: List of Sliders**
+    # List of Sliders
     sliders = [path_length_slider, zoom_slider]
-    # **END ADDED**
+
+    # Panning State Variables
+    is_panning = False
+    pan_start_x, pan_start_y = 0, 0
+    initial_offset_x, initial_offset_y = 0, 0
 
     while running:
         for event in pygame.event.get():
             # Handle Slider Events
             for slider in sliders:
                 slider.handle_event(event)
+
+            # Handle Drop-Down Menu Events
+            option_selected = graph_dropdown.handle_event(event)
+            if option_selected:
+                print(f"Graph type selected: {option_selected}")
 
             # Handle Button Events
             if refine_button.handle_event(event):
@@ -1018,14 +1136,21 @@ def main():
                             ordered_neighbors_dict[node_index] = ordered
                         else:
                             # Fallback to angle-based ordering
-                            # ordered = get_ordered_neighbors(nodes, adj_matrix, node_index)
-                            # ordered_neighbors_dict[node_index] = ordered
                             pass
                     # Recompute triangles after shrinking
                     triangles = find_triangles(nodes, adj_matrix)
                     print(f"Collapsed {num_pairs} pairs of nodes.")
                 except ValueError:
                     print("Invalid input for number of node pairs to shrink.")
+
+            # Handle Reset Button Events
+            if reset_button.handle_event(event):
+                # Perform reset action based on selected graph type
+                nodes, adj_matrix, triangles = initialize_graph(graph_dropdown.selected)
+                path = []
+                selected_nodes = []
+                shrink_input_text = "1"
+                print(f"Graph has been reset to the {graph_dropdown.selected}.")
 
             if event.type == pygame.QUIT:
                 running = False
@@ -1036,6 +1161,7 @@ def main():
                 # Check if clicking within the drawing area
                 if mouse_y < HEIGHT - PANEL_HEIGHT:
                     # Check if a node is clicked
+                    node_clicked = False
                     for idx, node in enumerate(nodes):
                         x_screen, y_screen = world_to_screen(node.x, node.y, zoom, offset_x, offset_y)  # **MODIFIED**
                         node_radius = 6
@@ -1053,7 +1179,36 @@ def main():
                                     else:
                                         print(f"No edge exists between node {node_a} and node {node_b}.")
                                         selected_nodes = []  # Reset selection
+                            # Initiate node dragging
+                            dragged_node = node
+                            node.fixed = True
+                            node_clicked = True
                             break  # Only one node can be selected at a time
+
+                    if not node_clicked:
+                        # Initiate Panning if background is clicked
+                        is_panning = True
+                        pan_start_x, pan_start_y = mouse_x, mouse_y
+                        initial_offset_x, initial_offset_y = offset_x, offset_y
+
+            elif event.type == pygame.MOUSEBUTTONUP:
+                # Terminate Panning
+                if is_panning:
+                    is_panning = False
+                # Terminate node dragging
+                if dragged_node:
+                    dragged_node.fixed = False
+                    dragged_node = None
+
+            elif event.type == pygame.MOUSEMOTION:
+                # Handle Panning
+                if is_panning:
+                    mouse_x, mouse_y = event.pos
+                    dx = mouse_x - pan_start_x
+                    dy = mouse_y - pan_start_y
+                    # Update offsets based on movement delta and zoom
+                    offset_x = initial_offset_x + dx / zoom
+                    offset_y = initial_offset_y + dy / zoom
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_r:
@@ -1093,14 +1248,13 @@ def main():
         # Handle Node Movement
         if dragged_node:
             mouse_x, mouse_y = pygame.mouse.get_pos()
-            # **MODIFIED: Use screen_to_world to correctly map mouse position to world coordinates**
+            # Use screen_to_world to correctly map mouse position to world coordinates
             new_x, new_y = screen_to_world(mouse_x, mouse_y, zoom, offset_x, offset_y)
             dragged_node.x = new_x
             dragged_node.y = new_y
 
-        # **ADDED: Update Zoom Based on Zoom Slider**
+        # Update Zoom Based on Zoom Slider
         zoom = zoom_slider.value / 100.0  # Convert slider value to zoom factor (e.g., 100 -> 1.0x)
-        # **END ADDED**
 
         # Automatic Path Propagation Based on Slider Value
         if len(path) < path_length_slider.value and len(path) >= 2:
@@ -1120,10 +1274,9 @@ def main():
         # Compute energy after force application
         energy = compute_energy(nodes, adj_matrix)
 
-        # **Newly Added: Compute Number of Vertices and Edges**
+        # Compute Number of Vertices and Edges
         num_vertices = len(nodes)
         num_edges = sum([len(node.edges) for node in nodes]) // 2  # Each edge is counted twice
-        # **End of Newly Added Code**
 
         # Clear the screen and draw the graph
         draw_graph(screen, nodes, adj_matrix, zoom, offset_x, offset_y, dragged_node)
@@ -1138,9 +1291,8 @@ def main():
         # Draw Traversal Path
         draw_traversal_path(screen, nodes, path, zoom, offset_x, offset_y)
 
-        # **Newly Modified: Pass Vertex and Edge Counts to draw_ui**
-        draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, num_edges)
-        # **End of Newly Modified Code**
+        # Pass Vertex and Edge Counts and Drop-Down to draw_ui
+        draw_ui(screen, sliders, buttons, energy, shrink_input_text, num_vertices, num_edges, graph_dropdown)
 
         # Update the display
         pygame.display.flip()
