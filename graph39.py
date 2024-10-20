@@ -812,14 +812,6 @@ def is_unique_cycle(adj_matrix):
 def find_neighbor_cycle(adjacency_matrix, node):
     """Order neighbors of the given node based on the cycle formed by edges between them."""
     neighbors = find_neighbors(adjacency_matrix, node)
-    # print((adjacency_matrix, neighbors))
-    # print(len(neighbors))
-    # assert(len(neighbors)//2*2==len(neighbors))
-    # print(extract_subgraph(adjacency_matrix, neighbors))
-    # print(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
-    # assert(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
-    # print(is_unique_cycle(extract_subgraph(adjacency_matrix, neighbors)))
-    
     if len(neighbors) < 2:
         return neighbors  # No cycle possible if fewer than 2 neighbors
     
@@ -1063,7 +1055,7 @@ def main():
         label="Zoom"
     )
 
-    # Create Buttons for Barycentric Refinement, Shrink Nodes, and Reset
+    # Create Buttons for Barycentric Refinement, Shrink Nodes, Reset, and Print Matrix
     refine_button = Button(
         x=WIDTH - 300,
         y=HEIGHT - PANEL_HEIGHT + 140,
@@ -1080,7 +1072,6 @@ def main():
         text="Shrink"
     )
 
-    # Create Reset Button
     reset_button = Button(
         x=WIDTH - 180,  # Adjust X to avoid overlap; may need to shift existing buttons
         y=HEIGHT - PANEL_HEIGHT + 180,
@@ -1089,7 +1080,16 @@ def main():
         text="Reset"
     )
 
-    buttons = [refine_button, shrink_button, reset_button]
+    # **New Button: Print Adjacency Matrix**
+    print_matrix_button = Button(
+        x=WIDTH - 300,  # Positioned next to the Refine button
+        y=HEIGHT - PANEL_HEIGHT + 180,
+        width=150,        # Increased width for better visibility
+        height=SHRINK_BUTTON_HEIGHT,
+        text="Print Matrix"
+    )
+
+    buttons = [refine_button, shrink_button, reset_button, print_matrix_button]  # Added the new button to the list
 
     # Initialize list of triangles
     # triangles = find_triangles(nodes, adj_matrix)
@@ -1172,6 +1172,11 @@ def main():
                     print(f"Collapsed {num_pairs} pairs of nodes.")
                 except ValueError:
                     print("Invalid input for number of node pairs to shrink.")
+
+            # Handle Print Matrix Button Click
+            if print_matrix_button.handle_event(event):
+                print("Adjacency Matrix:")
+                print(adj_matrix)
 
             # Handle Reset Button Events
             if reset_button.handle_event(event):
